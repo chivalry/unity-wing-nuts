@@ -11,6 +11,6 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "unity-river-raid.slnx",
+    "dotnet.defaultSolution": "unity-wing-nuts.slnx",
     "dotnet.enableWorkspaceBasedDevelopment": false
 }

@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using WingNuts.Player;
 
 namespace WingNuts.UI
 {
@@ -22,6 +23,30 @@ namespace WingNuts.UI
         [SerializeField] TMP_Text scoreLabel;
         [SerializeField] TMP_Text livesLabel;
 
+        void Start()
+        {
+            if (PlayerStats.Instance == null) return;
+            PlayerStats.Instance.OnShieldsChanged += OnShieldsChanged;
+            PlayerStats.Instance.OnFuelChanged    += OnFuelChanged;
+            PlayerStats.Instance.OnScoreChanged   += OnScoreChanged;
+            PlayerStats.Instance.OnLivesChanged   += OnLivesChanged;
+
+            // Populate HUD with starting values immediately.
+            OnShieldsChanged(PlayerStats.Instance.Shields);
+            OnFuelChanged(PlayerStats.Instance.Fuel);
+            OnScoreChanged(PlayerStats.Instance.Score);
+            OnLivesChanged(PlayerStats.Instance.Lives);
+        }
+
+        void OnDestroy()
+        {
+            if (PlayerStats.Instance == null) return;
+            PlayerStats.Instance.OnShieldsChanged -= OnShieldsChanged;
+            PlayerStats.Instance.OnFuelChanged    -= OnFuelChanged;
+            PlayerStats.Instance.OnScoreChanged   -= OnScoreChanged;
+            PlayerStats.Instance.OnLivesChanged   -= OnLivesChanged;
+        }
+
         static readonly Color RingDimColor   = new Color(1f, 1f, 1f, 0.2f);
         static readonly Color RingLitColor   = new Color(1f, 1f, 1f, 1.0f);
 
@@ -33,9 +58,6 @@ namespace WingNuts.UI
             new Color(0.9f, 0.5f, 0.1f), // ring 4  orange
             new Color(0.9f, 0.1f, 0.1f), // ring 5  red
         };
-
-        // Called by PlayerStats events — wire up in PlayerStats.Start()
-        // or bind via UnityEvent in the Inspector.
 
         public void OnShieldsChanged(int shields)
         {

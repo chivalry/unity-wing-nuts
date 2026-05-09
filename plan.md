@@ -53,6 +53,10 @@ collide; all others are disabled):
 | `PlayerBullet` | `Enemy`       |
 | `EnemyBullet`  | `Player`      |
 | `Pickup`       | `Player`      |
+| `Enemy`        | `Player`      |
+
+Enemy-to-player body contact deals 25 damage to the player (calls
+`PlayerStats.TakeDamage(25)`) and destroys the enemy on contact.
 
 **Main camera:** orthographic, follows player via smooth damp
 (`Camera.main` or a dedicated `CameraFollow` component). Orthographic
@@ -103,7 +107,11 @@ resolved for small/educational projects.
   (e.g. 4× tall, 4× wide) so that wrapping in either axis is never
   visually jarring — there is always terrain filling the screen on all
   sides as tiles shift.
-- Islands are purely decorative — no collision with the player.
+- Islands are purely decorative — no collision with the player. Place
+  8–12 islands per map, each 3–10 tiles in diameter, at random positions
+  using the seeded RNG. The seed is chosen with
+  `Random.Range(0, int.MaxValue)` at game start and logged to the Unity
+  console so any layout is reproducible.
 - The Tilemap is static after generation; nothing moves individual tiles.
 
 **Camera follow (`Assets/Scripts/Core/CameraFollow.cs`):**
@@ -169,6 +177,18 @@ are authored at a consistent scale and placed in `Assets/Sprites/`.
 - **Island tiles**: green landmass tiles with terrain detail (trees,
   rocks) to stamp onto the ocean tilemap.
 
+**Animations (sprite sheets, used by `Animator`):**
+
+- **Player crash**: 4-frame sheet — intact → smoking → wing detached →
+  explosion flash.
+- **Enemy/boss explosion**: 4-frame sheet — flash → fireball → smoke →
+  clear. Same sheet reused for all enemy types.
+- **Tanker banking away**: 3-frame sheet — level → gentle bank → steep
+  bank. Played once as the tanker exits the screen.
+
+All sprites are imported at **32 pixels per unit**. Plane sprites are
+64×64 px; tiles are 32×32 px; bullets are 8×16 px.
+
 ---
 
 ## Phase 4: UI
@@ -196,11 +216,19 @@ The gauge is a single compound UI element:
 - **Fuel ring**: outermost UI Image, Fill Type = Radial 360. Its
   `fillAmount` tracks `fuel / 100f`. Color shifts green → yellow → red
   as fuel depletes.
-- **Shield rings**: several concentric UI Images inside the fuel ring,
-  each representing a band of shield strength (e.g. red outermost, orange,
-  yellow, green, cyan innermost — matching the screenshot). Rings are lit
-  or dimmed based on the current `shields` value, giving a clear
-  at-a-glance indication of remaining shield level.
+- **Shield rings**: 5 concentric UI Images inside the fuel ring. Each
+  ring maps to a 20-point shields band. A ring is fully opaque when
+  shields are in its band; dimmed (alpha 0.2) otherwise. All 5 dimmed
+  means shields = 0.
+
+  | Ring          | Band   | Color        |
+  | ------------- | ------ | ------------ |
+  | 1 (outermost) | 81–100 | Green        |
+  | 2             | 61–80  | Yellow-green |
+  | 3             | 41–60  | Yellow       |
+  | 4             | 21–40  | Orange       |
+  | 5 (innermost) | 1–20   | Red          |
+
 - **Plane icon**: static image at the center of the gauge.
 - All elements are children of a single `RadialGauge` Canvas GameObject,
   bound to `PlayerStats.OnShieldsChanged` and `PlayerStats.OnFuelChanged`.
@@ -211,8 +239,9 @@ The gauge is a single compound UI element:
 
 ### Minimap
 
-- Second orthographic camera (`MinimapCamera`) fixed in the world (not
-  parented to the player), positioned to frame the full Tilemap.
+- Second orthographic camera (`MinimapCamera`), not parented to the player.
+  Subscribes to `BackgroundScroller.OnMapWrapped` and shifts its own position
+  by the wrap offset on each wrap, keeping it aligned with the full Tilemap.
 - Renders to a 256×256 `RenderTexture` displayed in a UI Raw Image.
 - Culling mask includes the Tilemap layer (so islands appear) plus the
   `Minimap` layer (for dots).
@@ -234,6 +263,9 @@ The gauge is a single compound UI element:
 `Assets/Scripts/Player/PlayerShooter.cs`
 
 - **Rigidbody2D**, Gravity Scale = 0, Collision Detection = Continuous.
+- **NoseCollider**: child GameObject at the plane's nose tip with a
+  `CircleCollider2D` (trigger, radius ≈ 0.2 units) used for tanker
+  docking detection.
 - The plane always moves forward in the direction it is currently facing
   (like a real aircraft). Velocity = `transform.up * currentSpeed` applied
   each `FixedUpdate()`.
@@ -259,6 +291,16 @@ The gauge is a single compound UI element:
 - Up arrow takes priority if up and down are held simultaneously.
 - The player is never clamped — the world wraps around them in all
   directions.
+
+**File:** `Assets/Scripts/Player/PlayerShooter.cs`
+
+- On `Input.GetKeyDown(KeyCode.Space)`, calls
+  `BulletPool.Instance.GetBullet(BulletType.Player)`, positions the
+  bullet at the `NoseCollider` world position, and sets its direction
+  to `transform.up` (the direction the plane faces).
+- Disabled (will not fire) while `PlayerController.state == Refueling`.
+- No automatic fire-rate limiting beyond `GetKeyDown` (one shot per
+  press).
 
 **File:** `Assets/Scripts/Player/PlayerStats.cs`
 
@@ -302,6 +344,17 @@ The gauge is a single compound UI element:
 
 **File:** `Assets/Scripts/Core/Bullet.cs`
 
+- Fields set on activation by `BulletPool`: `Vector2 direction`,
+  `float speed`, `float maxRange`, `Vector3 spawnPosition`.
+- `Update()`: moves `transform.position +=
+  (Vector3)(direction * speed * Time.deltaTime)`. If distance from
+  `spawnPosition` exceeds `maxRange`, calls
+  `BulletPool.Instance.ReturnBullet(gameObject)`.
+- `OnTriggerEnter2D`: if the collider is on the correct target layer,
+  calls `target.TakeDamage(10)` (or `PlayerStats.TakeDamage(10)` for
+  enemy bullets), then calls
+  `BulletPool.Instance.ReturnBullet(gameObject)`.
+
 ---
 
 ## Phase 7: Enemy System
@@ -328,11 +381,19 @@ All enemy planes fly slower than the player.
 | Large plane | 3 hits  | 1 shot / 4 s    | May break formation to hunt |
 | Boss        | 20 hits | 1 spread / 0.5 s| End of level, spread fire   |
 
+**Boss movement:**
+
+The boss patrols slowly back and forth in a horizontal sweep across the
+upper third of the screen (approximately 60% of viewport width). It
+uses `AircraftMover` with a low speed (≈ 1.5 units/s) and reverses
+direction when it reaches each sweep endpoint. It fires its 5-bullet
+spread toward the player every 0.5 s regardless of movement direction.
+
 **Formations:**
 
 - Enemies always spawn in formation groups of 4–6 planes.
-- A formation is a mix of small planes, optionally including one large
-  plane (not all formations have one).
+- A formation is a mix of small planes. Exactly 3 of the 5 formations
+  include one large plane; the remaining 2 are small planes only.
 - Planes in a formation maintain fixed offsets from a shared formation
   anchor — an invisible GameObject with `AircraftMover` attached, parented
   under the formation's root object. Individual planes follow by setting
@@ -352,19 +413,24 @@ All enemy planes fly slower than the player.
   of the player's position; when true, all planes in the formation switch
   to Active simultaneously. They continue flying in formation and may
   begin firing at the player. If the formation contains a large plane,
-  there is a per-formation chance (e.g. 40%) that it breaks formation
-  and enters **Hunt** state.
+  there is a per-formation chance (40%) that it breaks formation and
+  enters **Hunt** state. This chance is rolled once, at the moment the
+  formation enters Active state.
 - **Hunt** (large plane only): the large plane smoothly steers toward the
   player using a gradual turn rate (`Mathf.MoveTowardsAngle`) — no
   instant direction changes. It fires while hunting. Remaining small
   planes continue their pattern independently.
 - **Death**: play explosion, destroy. Remaining formation members continue
   in their current state.
+- **Body collision with Player**: any enemy plane that physically collides
+  with the player calls `PlayerStats.TakeDamage(25)` and immediately
+  destroys itself (plays explosion). Handled in
+  `EnemyBase.OnCollisionEnter2D`.
 
 **Enemy firing:** all non-boss enemies fire a single bullet aimed
-generally toward the player (direction to player with a small random
-angular offset so shots aren't perfectly accurate). The boss fires a
-spread of 5 bullets evenly distributed across a 90° forward arc,
+generally toward the player (direction to player with a random angular
+offset in the range ±15°). The boss fires a spread of 5 bullets evenly
+distributed across a 90° forward arc,
 centered on the direction toward the player.
 
 **Level Initializer:** `Assets/Scripts/Core/LevelInitializer.cs`
@@ -407,10 +473,13 @@ centered on the direction toward the player.
 **File:** `Assets/Scripts/Core/TankerPlane.cs`
 
 The tanker is not pre-placed. When `PlayerStats.fuel` drops below 25%,
-`GameManager` spawns a tanker off the top edge of the screen. It uses the
-same `AircraftMover` component as all non-player aircraft: patrol
-wandering via smooth random direction changes, same speed as enemy
-formations.
+`GameManager` spawns a tanker off the top edge of the screen. It does
+NOT use `AircraftMover`'s random wander. On spawn, it is assigned a
+random horizontal direction (left or right) and flies in a straight
+line at a constant slow speed (2 units/s). It does not steer. The
+player uses the minimap cyan dot to intercept it. The tanker subscribes
+to `OnMapWrapped` and shifts position on each wrap, keeping it
+perpetually reachable.
 
 **Tanker behavior:**
 
@@ -495,7 +564,7 @@ GameScene
 2. Map generation + scrolling background
 3. Art (all sprites)
 4. UI layout (radial gauge, text counters, minimap placeholder)
-5. Player movement + world wrap
+5. Player movement (steering, speed, fuel drain)
 6. Bullet pool
 7. Player shooting
 8. Player stats (shields + fuel drain)
@@ -527,3 +596,16 @@ GameScene
   multiple hits and triggers victory on death.
 - **Lives**: Take enough damage to die; confirm lives decrement and player
   respawns. Lose all three lives; confirm Game Over screen appears.
+- **Score**: Kill a small enemy (expect +100), a large enemy (+300),
+  collect a colleague parachute (+500). Confirm the score label updates
+  correctly after each event.
+- **Fuel death**: Let fuel drain to 0 without taking any bullet damage.
+  Confirm the crash animation plays and a life is decremented.
+- **Enemy AI states**: Fly away from a formation until it is well
+  off-screen; confirm enemies do not fire. Return within range; confirm
+  they switch to Active and begin firing. Confirm that, for one of the
+  3 formations containing a large plane, the large plane eventually
+  enters Hunt state and steers toward the player.
+- **SpriteGenerator**: From the Unity Editor menu, run
+  **WingNuts → Generate Sprites**. Confirm all expected `.png` files
+  appear in `Assets/Sprites/` with no console errors.

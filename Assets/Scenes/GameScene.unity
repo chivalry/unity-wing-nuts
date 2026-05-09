@@ -259,8 +259,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba35c6c6ca9304842ac1b356cdb0b9a1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WingNuts.Core.MapGenerator
-  oceanTile: {fileID: 0}
-  islandTile: {fileID: 0}
+  oceanTile: {fileID: 11400000, guid: 8358349cbfaa74c34b1bb6ff975961c4, type: 2}
+  islandTile: {fileID: 11400000, guid: f40bf8db169f142b09d026b535ffb9c8, type: 2}
   mapWidthInTiles: 80
   mapHeightInTiles: 80
   minIslands: 8

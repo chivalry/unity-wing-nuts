@@ -26,8 +26,11 @@ namespace WingNuts.Core
 
         void OnTriggerEnter2D(Collider2D other)
         {
-            // Damage is applied by the target (enemy or player) via their own
-            // OnTriggerEnter2D, so we just return the bullet here.
+            if (gameObject.layer == LayerMask.NameToLayer("EnemyBullet") &&
+                other.gameObject.layer == LayerMask.NameToLayer("Player"))
+                WingNuts.Player.PlayerStats.Instance.TakeDamage(10);
+
+            // Player-bullet damage is handled by the enemy in Phase 7.
             BulletPool.Instance.ReturnBullet(gameObject);
         }
     }

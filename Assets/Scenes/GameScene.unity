@@ -1363,6 +1363,54 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WingNuts.Core.CameraFollow
   target: {fileID: 1450011741}
   smoothTime: 0.1
+--- !u!1 &558416431
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 558416433}
+  - component: {fileID: 558416432}
+  m_Layer: 0
+  m_Name: BulletPool
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &558416432
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 558416431}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ff269604cb0fc4d299d622c46d0d0af0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WingNuts.Core.BulletPool
+  playerBulletPrefab: {fileID: 7635533944088966957, guid: 3b9542e06268945eab44aaaa9c6b1b38, type: 3}
+  enemyBulletPrefab: {fileID: 6644557793897791485, guid: 9870c3e969152499e8275e774ece3d4a, type: 3}
+  playerPoolSize: 20
+  enemyPoolSize: 50
+--- !u!4 &558416433
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 558416431}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &612502314
 GameObject:
   m_ObjectHideFlags: 0
@@ -2536,3 +2584,4 @@ SceneRoots:
   - {fileID: 329483567}
   - {fileID: 1305187208}
   - {fileID: 1450011741}
+  - {fileID: 558416433}

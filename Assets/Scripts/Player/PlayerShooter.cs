@@ -7,7 +7,10 @@ namespace WingNuts.Player
     {
         [SerializeField] Transform noseCollider;
 
+        [SerializeField] float fireRate = 0.25f;
+
         PlayerController _controller;
+        float            _fireCooldown;
 
         void Awake()
         {
@@ -16,8 +19,13 @@ namespace WingNuts.Player
 
         void Update()
         {
+            _fireCooldown -= Time.deltaTime;
+
             if (_controller.CurrentState == PlayerController.State.Refueling) return;
             if (!Input.GetKeyDown(KeyCode.Space)) return;
+            if (_fireCooldown > 0f) return;
+
+            _fireCooldown = fireRate;
 
             GameObject bullet = BulletPool.Instance.GetBullet(BulletType.Player);
             if (bullet == null) return;

@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.Tilemaps;
 using UnityEngine.UI;
 using WingNuts.Core;
+using WingNuts.Enemy;
 using WingNuts.Player;
 
 namespace WingNuts.UI
@@ -17,9 +18,10 @@ namespace WingNuts.UI
         [SerializeField] Color oceanColor  = new Color(0.15f, 0.45f, 0.75f);
         [SerializeField] Color islandColor = new Color(0.80f, 0.70f, 0.40f);
 
-        Transform _gridTransform;
-        Texture2D _mapTex;
-        int _mapW, _mapH;
+        Transform  _gridTransform;
+        Texture2D  _mapTex;
+        Color[]    _basePixels;
+        int        _mapW, _mapH;
 
         void Awake()
         {
@@ -28,11 +30,11 @@ namespace WingNuts.UI
 
             if (playerTransform == null)
             {
-                var pc = FindObjectOfType<PlayerController>();
+                var pc = FindAnyObjectByType<PlayerController>();
                 if (pc != null) playerTransform = pc.transform;
             }
 
-            var grid = FindObjectOfType<Grid>();
+            var grid = FindAnyObjectByType<Grid>();
             if (grid != null) _gridTransform = grid.transform;
         }
 
@@ -45,7 +47,7 @@ namespace WingNuts.UI
         {
             yield return null; // let MapGenerator.Start() finish
 
-            var mapGen = FindObjectOfType<MapGenerator>();
+            var mapGen = FindAnyObjectByType<MapGenerator>();
             if (mapGen == null) yield break;
 
             _mapW = mapGen.MapWidth;
@@ -65,6 +67,7 @@ namespace WingNuts.UI
                 _mapTex.SetPixel(x, y, land ? islandColor : oceanColor);
             }
             _mapTex.Apply();
+            _basePixels = _mapTex.GetPixels();
 
             if (minimapDisplay != null)
             {
@@ -89,21 +92,35 @@ namespace WingNuts.UI
 
         void LateUpdate()
         {
-            if (playerTransform == null || _mapTex == null || minimapDisplay == null) return;
+            if (playerTransform == null || _mapTex == null || _basePixels == null || minimapDisplay == null) return;
 
             float gridX = _gridTransform ? _gridTransform.position.x : 0f;
             float gridY = _gridTransform ? _gridTransform.position.y : 0f;
 
-            // Relative position stays in (-mapW/2, mapW/2) thanks to BackgroundScroller
+            // Restore the clean baked map, then stamp enemy dots on top.
+            _mapTex.SetPixels(_basePixels);
+            StampEnemyDots(gridX, gridY);
+            _mapTex.Apply();
+
             float relX = playerTransform.position.x - gridX;
             float relY = playerTransform.position.y - gridY;
-
-            // UV of the player in the texture (0-1); center the full map on that point
             float u = relX / _mapW + 0.5f;
             float v = relY / _mapH + 0.5f;
-
-            // w=1, h=1 shows the whole map; Repeat wrap handles toroidal edges
             minimapDisplay.uvRect = new Rect(u - 0.5f, v - 0.5f, 1f, 1f);
+        }
+
+        void StampEnemyDots(float gridX, float gridY)
+        {
+            var enemies = FindObjectsByType<EnemyBase>();
+            foreach (var e in enemies)
+            {
+                if (e == null) continue;
+                int px = Mathf.RoundToInt(e.transform.position.x - gridX + _mapW * 0.5f);
+                int py = Mathf.RoundToInt(e.transform.position.y - gridY + _mapH * 0.5f);
+                px = ((px % _mapW) + _mapW) % _mapW;
+                py = ((py % _mapH) + _mapH) % _mapH;
+                _mapTex.SetPixel(px, py, Color.yellow);
+            }
         }
     }
 }
